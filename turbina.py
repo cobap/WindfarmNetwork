@@ -1,13 +1,47 @@
 """."""
 
 import socket
+import sys
 
-HOST = '127.0.0.1'  # The server's hostname or IP address
-PORT = 50000        # The port used by the server
+def inicia_conexao_turbina(host="127.0.0.1", port=5123):
+    # Iniciamos um socket IPv4 e TCP
+    soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    s.connect((HOST, PORT))
-    s.sendall(b'Hello, world')
-    data = s.recv(1024)
+    # Tentamos fazer a conexao com o cliente
+    try:
+        soc.connect((host, port))
+    except:
+        print("Erro durante a conexao: " + str(sys.exc_info()))
+        sys.exit()
 
-print('Received', repr(data))
+    # Iniciada a conexao -
+    print("Pressione 'quit' para sair")
+
+    # Pegamos o input da turbina
+    message = input(" >> ")
+
+    # Enquanto a mensagem for diferente de quit (para sair)
+    while message != 'quit':
+        # Envia a mensagem com encode de utf-8
+        soc.sendall(message.encode("utf8"))
+
+        #TODO o que acontecera se nao receber o - e sim --
+        # Caso receba um '-' continue
+        response = soc.recv(5120).decode("utf8")
+
+        if response == "--":
+            print('~~~~ TESTE ~~~~')
+            pass        # null operation
+
+        if response == "easter":
+            print('~~~~ EASTER EGG ~~~~')
+            pass        # null operation
+
+        # Coleta nova mensagem do cliente para o monitoramento
+        message = input(" >> ")
+
+    # Envia --quit-- quando usuario escreve 'quit'
+    soc.send(b'--quit--')
+
+if __name__ == "__main__":
+    inicia_conexao_turbina()
