@@ -6,22 +6,29 @@ import math
 import time
 
 class Turbina:
+    """
+        ID: identificador unico de uma turbina
 
+        STATUS: representa o 'modo' com que a turbina se encontra
+            0 - desligada
+            1 - online
+            2 - parada
+            3 - com falha
+
+        ALARME: contador de alarmes da turbina. +3 alarmes a turbina entra em "falha"
+
+        PRODUCAO: calcula através de alguns fatores qual a producao atual da turbina em um tempo T
+    """
+
+    # Ja iniciamos uma nova turbina com o IP e PORTA do monitoramento + o ID dessa turbina
     def __init__(self, id, host, port):
         self.id = id
         self.status = 0
         self.host = host
         self.port = port
 
+        # Enviamos uma mensagem tipo 0, para que o monitoramento registre essa turbina em sua lista
         self.envia_mensagem(0)
-
-    def inicia_turbina(self):
-        self.alarmes = 0
-        time.sleep(100)
-
-        self.status = 1
-        self.fator_absorcao = 0.7
-        # self.fator_transformacao = vento_atual/(self.alarmes + 1)
 
     def atualiza_turbina(self, vento_atual, tempo):
         self.fator_transformacao = vento_atual/(self.alarmes + 1)
@@ -98,9 +105,16 @@ class Turbina:
         # Iniciada a conexao
         print("Turbina " + str(self.id) + ' conectada ao monitoramento')
 
+        # Mensagem para registro da turbina no monitoramento
         if categoria_mensagem == 0:
-            mensagem = str(self.id) + str(self.status)
+            # A mensagem de inicio é a mais curta, mostrando apenas o ID da turbina e seu status como desligadas
+            mensagem = str(categoria_mensagem) + str(self.id) + str(self.status)
+
+            print('Enviando mensagem de '+ str(sys.getsizeof(mensagem.encode('utf8'))) +' BYTES')
+
             soc.sendall(mensagem.encode('utf8'))
+
+            # Esperamos uma resposta de "OK" do monitoramento
             resposta = soc.recv(5120).decode('utf8')
 
             if resposta == "1":
@@ -111,14 +125,12 @@ class Turbina:
                 # TODO algo errado com o monitoramento
             else:
                 print('Deu ruim na comunicacao')
-            soc.send(b'--quit--')
-            # soc.send('--quit--'.encode('utf8'))
+
+            print('Enviando QUIT '+ str(sys.getsizeof("--quit--".encode('utf8'))) +' BYTES')
+            soc.send('--quit--'.encode('utf8'))
 
     def __str__(self):
         return self.id
 
 if __name__ == "__main__":
     turbina = Turbina('WTG01', '127.0.0.1', 5123)
-    print('Ligando turbina: ' + str(turbina))
-
-    # turbina.calcula_producao(1,1,1)
