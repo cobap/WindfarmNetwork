@@ -62,7 +62,7 @@ def client_thread(connection, ip, port, max_buffer_size = 5120):
             connection.close()
             is_active = False
         else:
-            print("Cliente " + ip + ":" + port + " enviou: {}".format(client_input))
+            print("Turbina {0} conectada com status {1}".format(client_input[:5], client_input[-1]))
 
             #TODO
             if client_input == 'EGG':
