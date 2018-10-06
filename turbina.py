@@ -21,8 +21,8 @@ class Turbina:
     """
 
     # Ja iniciamos uma nova turbina com o IP e PORTA do monitoramento + o ID dessa turbina
-    def __init__(self, id, host, port):
-        self.id = id
+    def __init__(self, host, port):
+        self.id = sys.argv[1]
         self.status = 0
         self.host = host
         self.port = port
@@ -104,33 +104,30 @@ class Turbina:
 
         # Iniciada a conexao
         print("Turbina " + str(self.id) + ' conectada ao monitoramento')
+        # print('Enviando mensagem de '+ str(sys.getsizeof(mensagem.encode('utf8'))) +' BYTES')
 
-        # Mensagem para registro da turbina no monitoramento
+        """ -- REGISTRO DA TURBINA -- """
         if categoria_mensagem == 0:
             # A mensagem de inicio é a mais curta, mostrando apenas o ID da turbina e seu status como desligadas
-            mensagem = str(categoria_mensagem) + str(self.id) + str(self.status)
-
-            print('Enviando mensagem de '+ str(sys.getsizeof(mensagem.encode('utf8'))) +' BYTES')
-
+            mensagem = str(self.id)
             soc.sendall(mensagem.encode('utf8'))
 
             # Esperamos uma resposta de "OK" do monitoramento
             resposta = soc.recv(5120).decode('utf8')
 
-            if resposta == "1":
-                print('recebeu 1')
+            if resposta == "001":
+                print('Monitoramento configurou turbina com sucesso!')
                 # TODO turbina esta online e pode operar
-            if resposta == "0":
-                print('recebeu 0')
-                # TODO algo errado com o monitoramento
+            elif resposta == "002":
+                print('Ocorreu um erro durante a configuração')
             else:
                 print('Deu ruim na comunicacao')
 
-            print('Enviando QUIT '+ str(sys.getsizeof("--quit--".encode('utf8'))) +' BYTES')
-            soc.send('--quit--'.encode('utf8'))
+            # Cancela conexao
+            soc.send('--exit--'.encode('utf8'))
 
     def __str__(self):
         return self.id
 
 if __name__ == "__main__":
-    turbina = Turbina('WTG01', '127.0.0.1', 5123)
+    turbina = Turbina('127.0.0.1', 5123)
