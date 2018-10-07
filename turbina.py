@@ -4,6 +4,7 @@ import socket
 import sys
 import math
 import time
+import random
 
 class Turbina:
     """
@@ -30,9 +31,45 @@ class Turbina:
         # Enviamos uma mensagem tipo 0, para que o monitoramento registre essa turbina em sua lista
         self.envia_mensagem(0)
 
-    def atualiza_turbina(self, vento_atual, tempo):
-        self.fator_transformacao = vento_atual/(self.alarmes + 1)
-        self.calcula_producao(self.fator_absorcao, self.fator_transformacao, tempo)
+    def iniciar(self):
+
+        tempo = 1
+        self.alarmes = 0
+        vento_atual = (random.random() * 10) + 10
+
+        self.fator_transformacao = (100 - vento_atual/(self.alarmes + 1) * random.random())/100
+
+        # Repetimos isso indefinidamente
+        while True:
+            # 1 - Verificamos se a turbina ja esta configurada
+            if self.ativa == 1:
+                vento_atual = (random.random() * 10) + 10
+
+                self.fator_transformacao = (100 - vento_atual/(self.alarmes + 1) * random.random())/100
+
+                energia_gerada = (math.cos(tempo) + 1) * 0.7 * self.fator_transformacao
+
+                chance_alarme = 0
+                if vento_atual > 16:
+                    chance_alarme = 0.3
+                elif vento_atual > 13:
+                    chance_alarme = 0.2
+                elif vento_atual > 11:
+                    chance_alarme = 0.1
+                else:
+                    chance_alarme = 0.05
+
+                if random.random() < chance_alarme:
+                    self.alarmes = self.alarmes + 1
+
+                print('VENTO: {} | ALARMES: {} | FATOR TRANSF: {} | CHANCE_ALARME: {} | ENERGIA GERADA: {}'.format(vento_atual, self.alarmes, self.fator_transformacao, chance_alarme, energia_gerada))
+                print('--------------')
+
+                if self.alarmes == 3:
+                    self.status = 3
+                    # TODO precisa parar a turbina
+
+                time.sleep(10)
 
     def calcula_producao(self, fator_absorcao, fator_transformacao, tempo):
         """
@@ -117,9 +154,13 @@ class Turbina:
 
             if resposta == "001":
                 print('Monitoramento configurou turbina com sucesso!')
-                # TODO turbina esta online e pode operar
+                self.ativa = 1
             elif resposta == "002":
-                print('Ocorreu um erro durante a configuração')
+                print('Essa turbina já havia sido configurada!')
+                self.ativa = 0
+            elif resposta == "003":
+                print('Turbina duplamente configurada... erro')
+                self.ativa = 0
             else:
                 print('Deu ruim na comunicacao')
 
@@ -131,3 +172,4 @@ class Turbina:
 
 if __name__ == "__main__":
     turbina = Turbina('127.0.0.1', 5123)
+    turbina.iniciar()

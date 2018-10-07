@@ -85,13 +85,20 @@ class Monitoramento:
             # mensagem_turbina =  str(decoded_input).upper()
 
     def configura_turbina(self, connection, mensagem_turbina, ip, port):
-        self.turbinas_online[mensagem_turbina] = {}
-        self.turbinas_online[mensagem_turbina]['status'] = 1
-        self.turbinas_online[mensagem_turbina]['IP'] = str(ip) + ':' + str(port)
+        if mensagem_turbina in self.turbinas_online.keys():
+            if self.turbinas_online[mensagem_turbina]['IP'] == str(ip) + ':' + str(port):
+                print('Turbina ja configurada... abortar')
+                connection.sendall('003'.encode('utf8'))
+            else:
+                connection.sendall('002'.encode('utf8'))
+        else:
+            self.turbinas_online[mensagem_turbina] = {}
+            self.turbinas_online[mensagem_turbina]['status'] = 1
+            self.turbinas_online[mensagem_turbina]['IP'] = str(ip) + ':' + str(port)
 
-        print('Turbina ' + mensagem_turbina + ' configurada com sucesso!')
-        print(self.turbinas_online[mensagem_turbina]['IP'])
-        connection.sendall("001".encode("utf8"))
+            print('Turbina ' + mensagem_turbina + ' configurada com sucesso!')
+            print(self.turbinas_online[mensagem_turbina]['IP'])
+            connection.sendall("001".encode("utf8"))
 
     # Recupera o input do cliente
     def receive_input(self, connection, max_buffer_size):
