@@ -4,16 +4,20 @@ import socket
 import sys
 from threading import Thread
 import random
+import time
 
 class Monitoramento:
+    """
+        HOST/PORT: Host e porta que serão usados para receber as mensagens das turbinas
 
+    """
     def __init__(self, host, port, numero_turbinas):
         self.host = host
         self.port = port
+
+
         self.numero_turbinas = numero_turbinas
-        self.velocidade_vento = random.random() * 10 + 1
         self.turbinas_online = {}
-        self.turbinas_falha = {}
 
     # Inicia servidor
     def inicia_servidor(self):
@@ -33,7 +37,7 @@ class Monitoramento:
         # Caso o bind seja um sucesso, abrimos para uma fila de ate 5 conexoes
         soc.listen(self.numero_turbinas)
 
-        print("-- Iniciando monitoramento --")
+        print("--- Iniciando monitoramento ---")
 
         # Iniciamos um loop inifito, sempre aceitando novas conexoes
         while True:
@@ -60,56 +64,64 @@ class Monitoramento:
 
         # Mantemos a conexao enquanto o cliente estiver ativo (recebendo pacotes ou nao saiu da aplicacao)
         while _ativa:
-            # Recupera do buffer ate 5012 Bytes do cliente
+
+            # Recebemos a mensagem do cliente
             mensagem_turbina = connection.recv(max_buffer_size)
-            # Mede o tamanho do input do cliente - dos 5012 permitidos
+
+            # Medimos qual o length da mensagem, e de acordo com o tamanho, sabemos qual o tipo de mensagem
             length_mensagem = sys.getsizeof(mensagem_turbina)
 
-            print("Cliente enviou mensagem de " + str(sys.getsizeof(mensagem_turbina)) + " BYTES")
-
-            # Caso envie um tamanho maior que o size, mandamos esse print
-            if length_mensagem > max_buffer_size:
-                print("The input size is greater than expected {}".format(length_mensagem))
+            """ -- VERIFICACAO DO LENGTH DA MENSAGEM -- """
 
             if length_mensagem == 42:
-                print("Turbina " + mensagem_turbina.decode('utf8')[4:] + " desconectando")
+                """ FECHANDO CONEXAO COM O MONITORAMENTO """
                 connection.close()
                 _ativa = False
-            elif length_mensagem == 38:
-                self.configura_turbina(connection, mensagem_turbina.decode('utf8'), ip, port)
-            elif length_mensagem == 55:
-                self.processa_status_turbina(connection, mensagem_turbina.decode('utf8'))
-            else:
-                print('MENSAGEM NAO CONFIGURADA: ' + mensagem_turbina.decode('utf8'))
 
-            # Decode and strip end of line
-            # decoded_input = mensagem_turbina.decode("utf8").rstrip()
-            # mensagem_turbina =  str(decoded_input).upper()
+            elif length_mensagem == 38:
+                """ CONFIGURANDO A TURBINA PELA PRIMEIRA VEZ """
+                self.configura_turbina(connection, mensagem_turbina.decode('utf8'), ip, port)
+
+            elif length_mensagem == 51:
+                """ STATUS DE TURBINA """
+                self.processa_status_turbina(connection, mensagem_turbina.decode('utf8'))
+
+            else:
+                """ MENSAGEM AINDA NAO CONFIGURADA """
+                print('MENSAGEM NAO CONFIGURADA:')
+                print(mensagem_turbina.decode('utf8'))
+                print("Cliente enviou mensagem de " + str(sys.getsizeof(mensagem_turbina)) + " BYTES")
 
     def configura_turbina(self, connection, mensagem_turbina, ip, port):
-        if mensagem_turbina in self.turbinas_online.keys():
-            if self.turbinas_online[mensagem_turbina]['IP'] == str(ip) + ':' + str(port):
-                print('Turbina ja configurada... abortar')
-                connection.sendall('003'.encode('utf8'))
-            else:
-                connection.sendall('002'.encode('utf8'))
-        else:
-            self.turbinas_online[mensagem_turbina] = {}
-            self.turbinas_online[mensagem_turbina]['status'] = 1
-            self.turbinas_online[mensagem_turbina]['IP'] = str(ip) + ':' + str(port)
+        self.turbinas_online[mensagem_turbina] = {}
+        self.turbinas_online[mensagem_turbina]['status'] = 1
 
-            print('Turbina ' + mensagem_turbina + ' configurada com sucesso!')
-            # print(self.turbinas_online[mensagem_turbina]['IP'])
-            connection.sendall("001".encode("utf8"))
+        # Turbina esta pronta para operar
+        print('Turbina ' + mensagem_turbina + ' configurada com sucesso!')
+
+        # Envia OK para turbina
+        connection.sendall("001".encode("utf8"))
 
     def processa_status_turbina(self, connection, mensagem_turbina):
-        print('Recebendo status da turbina: ' + mensagem_turbina[:5])
+        print('Status da turbina: ' + mensagem_turbina[:5])
 
         kpis_turbina = mensagem_turbina.split(':')
 
         print('VENTO: {} | MW GERADO: {} | #ALARMES: {}'.format(kpis_turbina[1], kpis_turbina[2], kpis_turbina[3]))
 
-        connection.sendall("001".encode("utf8"))
+        # CONDICOES PARA CONTINUAR OPERANDO
+
+        if (float(kpis_turbina[1]) > 19):
+            # VENTO ALTO - DESLIGAR TURBINA
+            connection.sendall("002".encode("utf8"))
+        elif (float(kpis_turbina[1]) < 11):
+            # AUMENTAR POTENCIA DA TURBINA
+            connection.sendall("003".encode("utf8"))
+        elif (float(kpis_turbina[2]) == 2):
+            # DIMINUI POTENCIA DEVIDO A FALHAS
+            connection.sendall("004".encode("utf8"))
+        else:
+            connection.sendall("001".encode("utf8"))
 
 if __name__ == "__main__":
     monitoramento = Monitoramento('127.0.0.1', 5123, 5)

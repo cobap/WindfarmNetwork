@@ -59,7 +59,7 @@ class Turbina:
                 # Verificar pq fator não está sendo alterado pelo numero de alarmes
                 fator_transformacao = self.vento_atual * ((self.potencia)**(1-self.alarmes))
 
-                self.energia_gerada = (math.cos(tempo) + 1) * fator_transformacao
+                self.energia_gerada = (math.cos(tempo) + 2) * 1/fator_transformacao
 
                 chance_alarme = 0
                 if self.vento_atual > 16:
@@ -78,19 +78,18 @@ class Turbina:
                 print('--------------')
 
                 if self.alarmes == 3:
-                    self.status = 3
-                    # TODO precisa parar a turbina
+                    print('TRIPOU')
 
                 self.envia_mensagem(1)
                 time.sleep(5)
 
             elif self.status == 2:
                 print('TURBINA PARADA')
-                time.sleep(10)
+                time.sleep(15)
 
             elif self.status == 3:
                 print('TURBINA TRIPADA')
-                time.sleep(10)
+                time.sleep(30)
 
     def envia_mensagem(self, categoria_mensagem, parametros=None):
         # Iniciamos um socket IPv4 e TCP
@@ -103,53 +102,61 @@ class Turbina:
             print("Erro durante a conexao: " + str(sys.exc_info()))
             sys.exit()
 
-        # Iniciada a conexao
-        # print("Turbina " + str(self.id) + ' conectada ao monitoramento')
-        # print('Enviando mensagem de '+ str(sys.getsizeof(mensagem.encode('utf8'))) +' BYTES')
-
         if categoria_mensagem == 0:
             """ -- REGISTRO DA TURBINA -- """
-            # Enviamos o label da turbina, para que o monitor reconheca uma nova configuracao
+
+            # Mensagem somente o ID da turbina
             mensagem = str(self.id)
-            soc.sendall(mensagem.encode('utf8'))
-
-            # Esperamos uma resposta de "OK" do monitoramento
-            resposta = soc.recv(5120).decode('utf8')
-
-            if resposta == "001":
-                print('Monitoramento configurou turbina com sucesso!')
-                self.status = 1
-            else:
-                print('Ocorreu um erro durante configuracao da turbina')
-
-            # Fechamos a conexao
-            mensagem = 'EXIT' + self.id
-            soc.send(mensagem.encode('utf8'))
+            self.configura_turbina(soc, mensagem)
 
         elif categoria_mensagem == 1:
             """ -- STATUS DA TURBINA -- """
-            mensagem = str(self.id) + ':{:.2f}:{:.2f}:{:.2f}'.format(self.vento_atual, self.energia_gerada, self.alarmes)
-            soc.sendall(mensagem.encode('utf8'))
 
-            # Esperamos as orientacoes do monitoramento
-            resposta = soc.recv(5120).decode('utf8')
+            # Mensagem com vento, energia gerada e #alarmes
+            mensagem = str(self.id) + ':{:.2f}:{:.2f}:{}'.format(self.vento_atual, self.energia_gerada, self.alarmes)
+            self.processa_status_turbina(soc, mensagem)
 
-            if resposta == '001':
-                # CONTINUAR
-                print('CONTINUANDO TURBINA')
-            elif resposta == '002':
-                # PARAR devido ao vento muito alto
-                print('PARANDO TURBINA')
-                self.status = 2
-            elif resposta == '003':
-                # AJUSTAR A POTENCIA devido ao vento bom e potencia baixa
-                print('AJUSTANDO POTENCIA')
-            else:
-                print('STATUS NAO DEFINIDO')
+    def configura_turbina(self, connection, mensagem):
+        connection.sendall(mensagem.encode('utf8'))
 
-            # Cancela conexao
-            mensagem = 'EXIT' + self.id
-            soc.send(mensagem.encode('utf8'))
+        # Esperamos uma resposta de "OK" do monitoramento
+        resposta = connection.recv(5120).decode('utf8')
+
+        if resposta == "001":
+            print('Monitoramento configurou turbina com sucesso!')
+            self.status = 1
+        else:
+            print('Ocorreu um erro durante configuracao da turbina')
+
+        # Fechamos a conexao
+        mensagem = 'EXIT' + self.id
+        connection.send(mensagem.encode('utf8'))
+
+    def processa_status_turbina(self, connection, mensagem):
+        connection.sendall(mensagem.encode('utf8'))
+
+        # Esperamos as orientacoes do monitoramento
+        resposta = connection.recv(5120).decode('utf8')
+
+        if resposta == '001':
+            print('TURBINA RODANDO')
+            # CONTINUAR
+        elif resposta == '002':
+            print('DESLIGA TURBINA')
+            # DESLIGAR TURBINA
+        elif resposta == '003':
+            print('AUMENTA POTENCIA')
+            # AUMENTAR POTENCIA
+        elif resposta == '004':
+            print('DIMINUI POTENCIA')
+            # DIMINUI POTENCIA
+        else:
+            print('STATUS NAO DEFINIDO')
+
+
+        # Fechamos a conexao
+        mensagem = 'EXIT' + self.id
+        connection.send(mensagem.encode('utf8'))
 
     def __str__(self):
         return self.id
