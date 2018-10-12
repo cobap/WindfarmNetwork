@@ -41,7 +41,7 @@ class Monitoramento:
             connection, address = soc.accept()
             # Identificamos qual o IP e a PORTA que o cliente se encontra
             ip, port = str(address[0]), str(address[1])
-            print("Nova turbina conectada: " + ip + ":" + port)
+            # print("Nova turbina conectada: " + ip + ":" + port)
 
             # Para essa nova conexao, iniciamos uma nova thread, e passamos como argumento os detalhes da conexao (socket do cliente), IP e a PORTA
             try:
@@ -71,14 +71,16 @@ class Monitoramento:
             if length_mensagem > max_buffer_size:
                 print("The input size is greater than expected {}".format(length_mensagem))
 
-            if length_mensagem == 38:
-                self.configura_turbina(connection, mensagem_turbina.decode('utf8'), ip, port)
-            if length_mensagem == 41:
-                print("Turbina " + ip + ":" + port + " esta cancelando a conexao")
+            if length_mensagem == 42:
+                print("Turbina " + mensagem_turbina.decode('utf8')[4:] + " desconectando")
                 connection.close()
                 _ativa = False
+            elif length_mensagem == 38:
+                self.configura_turbina(connection, mensagem_turbina.decode('utf8'), ip, port)
+            elif length_mensagem == 55:
+                self.processa_status_turbina(connection, mensagem_turbina.decode('utf8'))
             else:
-                print('Outra')
+                print('MENSAGEM NAO CONFIGURADA: ' + mensagem_turbina.decode('utf8'))
 
             # Decode and strip end of line
             # decoded_input = mensagem_turbina.decode("utf8").rstrip()
@@ -97,29 +99,17 @@ class Monitoramento:
             self.turbinas_online[mensagem_turbina]['IP'] = str(ip) + ':' + str(port)
 
             print('Turbina ' + mensagem_turbina + ' configurada com sucesso!')
-            print(self.turbinas_online[mensagem_turbina]['IP'])
+            # print(self.turbinas_online[mensagem_turbina]['IP'])
             connection.sendall("001".encode("utf8"))
 
-    # Recupera o input do cliente
-    def receive_input(self, connection, max_buffer_size):
-        # Recupera do buffer ate 5012 Bytes do cliente
-        mensagem_turbina = connection.recv(max_buffer_size)
-        # Mede o tamanho do input do cliente - dos 5012 permitidos
-        length_mensagem = sys.getsizeof(mensagem_turbina)
+    def processa_status_turbina(self, connection, mensagem_turbina):
+        print('Recebendo status da turbina: ' + mensagem_turbina[:5])
 
-        print("Cliente enviou mensagem de " + str(sys.getsizeof(mensagem_turbina)) + " BYTES")
+        kpis_turbina = mensagem_turbina.split(':')
 
-        # Caso envie um tamanho maior que o size, mandamos esse print
-        if length_mensagem > max_buffer_size:
-            print("The input size is greater than expected {}".format(length_mensagem))
+        print('VENTO: {} | MW GERADO: {} | #ALARMES: {}'.format(kpis_turbina[1], kpis_turbina[2], kpis_turbina[3]))
 
-        # Decode and strip end of line
-        decoded_input = mensagem_turbina.decode("utf8").rstrip()
-        return str(decoded_input).upper()
-
-
-    def process_input(self, input_str):
-        print("Processing the input received from client")
+        connection.sendall("001".encode("utf8"))
 
 if __name__ == "__main__":
     monitoramento = Monitoramento('127.0.0.1', 5123, 5)
