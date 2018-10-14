@@ -19,6 +19,8 @@ class Monitoramento:
         self.numero_turbinas = numero_turbinas
         self.turbinas_online = {}
 
+        self.seriais = ['4Y7B1N8K', 'LJAXC7SP', '3ZOPA1N7', '1MKC6KK0', '9H10W0A7']
+
     # Inicia servidor
     def inicia_servidor(self):
         # Cria novo socket utilizando IPv4 e TCP
@@ -82,6 +84,14 @@ class Monitoramento:
                 """ CONFIGURANDO A TURBINA PELA PRIMEIRA VEZ """
                 self.configura_turbina(connection, mensagem_turbina.decode('utf8'), ip, port)
 
+            elif length_mensagem == 47:
+                """ CONFIGURANDO A TURBINA PELA PRIMEIRA VEZ """
+                resultado = self.configura_turbina_hash(connection, mensagem_turbina.decode('utf8'), ip, port)
+
+                if resultado == 1:
+                    connection.close()
+                    _ativa = False
+
             elif length_mensagem == 51:
                 """ STATUS DE TURBINA """
                 self.processa_status_turbina(connection, mensagem_turbina.decode('utf8'))
@@ -97,14 +107,23 @@ class Monitoramento:
                 print("Cliente enviou mensagem de " + str(sys.getsizeof(mensagem_turbina)) + " BYTES")
 
     def configura_turbina(self, connection, mensagem_turbina, ip, port):
-        self.turbinas_online[mensagem_turbina] = {}
-        self.turbinas_online[mensagem_turbina]['status'] = 1
-
         # Turbina esta pronta para operar
         print('Turbina ' + mensagem_turbina + ' configurada com sucesso!')
 
         # Envia OK para turbina
         connection.sendall("001".encode("utf8"))
+
+    def configura_turbina_hash(self, connection, mensagem_turbina, ip, port):
+
+        hash_turbina = mensagem_turbina.split(':')
+
+        if hash_turbina[1] in self.seriais:
+            print('Turbina ' + hash_turbina[0] + ' configurada com sucesso!')
+            connection.sendall("001".encode("utf8"))
+        else:
+            print('Erro ao analisar serial, verifique novamente')
+            connection.sendall("002".encode("utf8"))
+            return 1
 
     def processa_status_turbina(self, connection, mensagem_turbina):
 

@@ -28,6 +28,9 @@ class Turbina:
         # Definimos o nome da turbina na linha de comando
         self.id = sys.argv[1]
 
+        if len(sys.argv) == 3:
+            self.serial = sys.argv[2]
+
         # A turbina inicia desligada e com configuracao de potencia media
         self.status = 0
         self.potencia = 0.5
@@ -111,6 +114,9 @@ class Turbina:
 
             # Mensagem somente o ID da turbina
             mensagem = str(self.id)
+            if hasattr(self, 'serial'):
+                mensagem = str(self.id) + ':' + str(self.serial)
+
             self.configura_turbina(soc, mensagem)
 
         elif categoria_mensagem == 1:
@@ -140,6 +146,7 @@ class Turbina:
             self.status = 1
         else:
             print('Ocorreu um erro durante configuracao da turbina')
+            sys.exit(1)
 
         # Fechamos a conexao
         mensagem = 'EXIT' + self.id
