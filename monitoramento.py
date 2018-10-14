@@ -86,6 +86,10 @@ class Monitoramento:
                 """ STATUS DE TURBINA """
                 self.processa_status_turbina(connection, mensagem_turbina.decode('utf8'))
 
+            elif length_mensagem == 46:
+                """ TURBINA TRIPADA """
+                self.process_turbina_tripada(connection, mensagem_turbina.decode('utf8'))
+
             else:
                 """ MENSAGEM AINDA NAO CONFIGURADA """
                 print('MENSAGEM NAO CONFIGURADA:')
@@ -103,11 +107,10 @@ class Monitoramento:
         connection.sendall("001".encode("utf8"))
 
     def processa_status_turbina(self, connection, mensagem_turbina):
-        print('Status da turbina: ' + mensagem_turbina[:5])
 
         kpis_turbina = mensagem_turbina.split(':')
 
-        print('VENTO: {} | MW GERADO: {} | #ALARMES: {}'.format(kpis_turbina[1], kpis_turbina[2], kpis_turbina[3]))
+        print('Status ' + mensagem_turbina[:5] + ' => VENTO: {} | MW GERADO: {} | #ALARMES: {}'.format(kpis_turbina[1], kpis_turbina[2], kpis_turbina[3]))
 
         # CONDICOES PARA CONTINUAR OPERANDO
 
@@ -121,7 +124,12 @@ class Monitoramento:
             # DIMINUI POTENCIA DEVIDO A FALHAS
             connection.sendall("004".encode("utf8"))
         else:
+            # CONTINUAR
             connection.sendall("001".encode("utf8"))
+
+    def process_turbina_tripada(self, connection, mensagem_turbina):
+        print('Turbina: ' + mensagem_turbina[:5] + ' tripada... aguardando reparos...')
+        connection.sendall('001'.encode('utf8'))
 
 if __name__ == "__main__":
     monitoramento = Monitoramento('127.0.0.1', 5123, 5)

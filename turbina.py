@@ -79,6 +79,10 @@ class Turbina:
 
                 if self.alarmes == 3:
                     print('TRIPOU')
+                    time.sleep(15)
+                    self.alarmes = 0
+                    self.status = 1
+                    self.envia_mensagem(2)
 
                 self.envia_mensagem(1)
                 time.sleep(5)
@@ -116,6 +120,15 @@ class Turbina:
             mensagem = str(self.id) + ':{:.2f}:{:.2f}:{}'.format(self.vento_atual, self.energia_gerada, self.alarmes)
             self.processa_status_turbina(soc, mensagem)
 
+        elif categoria_mensagem == 2:
+            """ -- TURBINA TRIPOU -- """
+
+            self.potencia = 0.3
+
+            # Mensagem com vento, energia gerada e #alarmes
+            mensagem = str(self.id) + ':TRIPPED'
+            self.process_turbina_tripada(soc, mensagem)
+
     def configura_turbina(self, connection, mensagem):
         connection.sendall(mensagem.encode('utf8'))
 
@@ -143,20 +156,44 @@ class Turbina:
             # CONTINUAR
         elif resposta == '002':
             print('DESLIGA TURBINA')
+            time.sleep(10)
+            self.potencia = 0.3
             # DESLIGAR TURBINA
         elif resposta == '003':
             print('AUMENTA POTENCIA')
+            if(self.potencia == 0.3):
+                self.potencia = 0.5
+            elif(self.potencia == 0.5):
+                self.potencia = 0.7
             # AUMENTAR POTENCIA
         elif resposta == '004':
             print('DIMINUI POTENCIA')
+            if(self.potencia == 0.7):
+                self.potencia = 0.5
+            elif(self.potencia == 0.5):
+                self.potencia = 0.3
             # DIMINUI POTENCIA
         else:
             print('STATUS NAO DEFINIDO')
 
+        # Fechamos a conexao
+        mensagem = 'EXIT' + self.id
+        connection.send(mensagem.encode('utf8'))
+
+    def process_turbina_tripada(self, connection, mensagem):
+        connection.sendall(mensagem.encode('utf8'))
+
+        # Esperamos as orientacoes do monitoramento
+        resposta = connection.recv(5120).decode('utf8')
+
+        if resposta == '001':
+            print('MONITORAMENTO AGUARDANDO REPARO')
 
         # Fechamos a conexao
         mensagem = 'EXIT' + self.id
         connection.send(mensagem.encode('utf8'))
+
+        time.sleep(15)
 
     def __str__(self):
         return self.id
