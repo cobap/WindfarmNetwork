@@ -16,9 +16,26 @@ Um importante ponto a mencionar aqui. Existem 2 tipos possíveis de comunicaçã
 
 Nesse caso, em nosso projeto, as Turbinas estão a cada 5segundos coletando os dados de vento e geração de energia - podendo nesse meio tempo gerar falhas e até mesmo tripar. Com os 5 segundos finalizados, as turbinas então enviam uma grande mensagem para o monitoramento monstrando a média das informações geradas no ultimo 'loop'. No caso da nossa simulação, geramos os dados somente 1vez e esperamos 5segundos para gera-los novamente, aproximando nossa simulação do modelo real mais confiante.
 
+É também importante salientar que foi adicionado uma pequena camada de segurança opcional no projeto. Visto que não teriamos tempo para uma versão complexa, ao iniciar uma turbina, é possível utilizar um serial padrão pré-definido para garantir que a comunicação entre turbina e monitoramento seja 'verdadeira' - evitando com que terceiros iniciem a comunicação com o monitoramento através de IDs de turbinas falsas. A implementação está 100% completa porém bem simples e opcional. Durante a sessão de instalação e utilização é detalhado a forma com que deve ser utilizado
+
 ## Protocolo de comunicação
 
- -> TCP vs UDP
+### TCP e Cliente-Servidor
+
+Durante o design do projeto, escolhemos por utilizar uma comunicação TCP e arquitetura cliente-servidor. Primeiramente TCP pois toda a troca de mensagem entre a turbina e o monitoramento deveria ter garantia de chegada. No mundo real, na qual essa simulação foi baseada, o modelo é hibrido entre TCP e UDP, porém para facilitarmos as coisas, utilizamos somente TCP, assim, o monitoramento sempre tem o status de uma turbina mesmo que haja um delay.
+
+Sobre a arquitetura de cliente-servidor, a escolha foi mais simples. Todas as turbinas possuem o mesmo nível hierarquico e precisam responder ao monitoramento sobre o seu status, afim de serem otimizadas para geração do vento. Ao utilizarmos a arquitetura escolhida, fica mais fácil essa comunicação 'top-down' entre todos os agentes.
+
+### Detalhes do Protocolo
+
+Existem 5 tipos de mensagens possíveis no protocolo definido entre a turbina e o monitoramento.
+
+A primeira, e mais simples de todas são mensagens de length 42B, um simples request para cancelamento da comunicação. Além disso, também desabilitamos a thread que está responsável por cuidar daquele request. Liberando o espaço na memoria para o monitoramento.
+
+Após a mensagem de cancelamento, temos a mensagem com length 38B e 47B - as duas são mensagens de configuração de turbina. A única diferença é que enquanto a mensagem de 38 Bytes é uma simples flag que permite a turbina continuar enviando os dados (retornando 001 caso esteja tudo ok), a segunda (de 47 Bytes) verifica se a turbina requisitora enviou corretamente o numero de serial (uma forma de segurança na hora de configurar as turbinas). Caso isso tenha acontecido com sucesso, o monitoramento também retorna 001, caso negativo, 002 e a conexão é recusada por razões de segurança.
+
+Após isso, temos a mensagem de length 51B, a principal da nossa aplicação. Ela é enviada a cada 5 segundos por todas as turbinas com o resumo dos dados gerados naquele 'loop'. Essa mensagem contem diversas informações divididads em ':', como: nome da turbina geradora, vento atual na turbina, energia gerada no ultimo loop e a quantidade de falhas que a turbina possui (para tomada de decisão). Com essas informações, o monitoramento escolhe entre diversas ações que a turbina deve tomar. As respostas possíveis são: '001' - para continuar normalmente com a operação; '002' - para desligar a turbina e esperar 10 segundos devido aos fortes ventos que podem prejudicar a turbina; '003' para aumentar a potencia da turbina, fazendo com que esta gere mais energia. Isso se deve as boas condições de vento / vento fraco, na qual a turbina precisa se esforçar mais para manter a produção. Por último temos o código '004', que vendo uma turbina na qual a quantidade de falhas está aumentando, reduz a potencia da maquina, afim de não prejudicar a geração de energia da mesma.
+
  -> sintaxe e semântica
  -> parâmetros da mensagem
  -> como escrevo a mensagem
@@ -27,41 +44,58 @@ Nesse caso, em nosso projeto, as Turbinas estão a cada 5segundos coletando os d
 
 ## Como instalar e executar a simulação
 
-Mandar links, etc. Fonte de dados e uso o programa
+### Instalando o python 3.x
 
-## Como ler o código
+Pelo site oficial do python: https://www.python.org/downloads/. Você consegue baixar o python. Só é necessário que esteja utilizando versão 3.4 acima
 
-(main está em tal classe, etc) Diagrama
+### Faça o clone do projeto no git | Baixe o código fonte
 
-## Quais testes vcs fizeram e quais resultados nos obtivemos
+Faça o clone do código através do github: https://github.com/cobap/WindfarmNetwork.git. Caso preferir, você pode baixar a versão zip do código pelo próprio github
 
-## Problemas de rede e implementação
+### Utilização do programa
 
-Pq aconteceu e como resolver
+Para começar a testar a simulação é bem simples. Basta abrir 2 prompts de comando. Entrar no diretório em que se encontra o 'monitoramento.py' e 'turbina.py'. Após isso, basta executar
 
+´´´
+python(3) monitoramento.py
+´´´
 
-PENDENTE:
-Proposta *detalhada* da aplicação
+Repare que em alguns casos, o comando para executar o python3 pode ser tanto 'python' como 'python3'. Para checar a versão, basta digitar um dos dois na linha de comando e ver o resultado.
 
-Especificação da comunicação (pode colocar ideias)
- -> cliente servidor
- -> como
- -> o que tá no cliente/servidor
- -> o que cada um faz
- -> como lidar com erro
- -> segurança / criptografia
- -> temporizacao (iteração em tempo real)
+Com a execução do monitoramento, agora está na hora de iniciar as turbinas, para isso, na linha de comando preencha:
 
-Protocolo de comunicação bem especificado (ver Livro)
- -> TCP vs UDP
- -> sintaxe e semântica
- -> parâmetros da mensagem
- -> como escrevo a mensagem
- -> como respondo essas mensagens
- -> explicações gerais do pq fizemos assim
+´´´
+python(3) turbina.py [ARG1] (ARG2)
+´´´
 
+Aqui iniciamos a turbina, por padrão, toda turbina precisa ter como primeiro argumento um 'nome'. Esta configurado para ser WTGXX, onde WTG = Wind Turbine Generator, e XX é o numero da turbina, podendo ser qualquer numero de 01 até 99. Ja o ARG2 é opcional, sendo relevante somente caso queiramos iniciar uma conexão segura com o montoramento. Nesse caso, deve-se colocar um código pré-definido que é o "serial" da turbina. Com esse código, o monitoramento verifica se o código é valido e inicia a conexão
+
+Do modo com que foi implementada, os códigos de segurança são limitados e devem ser verificados no código fonte do programa 'monitoramento.py'
+
+### Como ler o código
+
+Por se tratar de um programa com apenas 2 arquivos, a leitura e compreensão de torna mais fácil. Recomenda-se iniciar pela leitura do código 'turbina.py' pois é nele que a maioria das variáveis são criadas e modificadas. É interessante entender como a turbina é criada, como funciona o processo de geração de dados (vento, energia, etc) e por ultimo verificar os tipos de mensagens que a turbina é capaz de enviar. Para cada tipo de mensagem, foi criada uma função diferente, buscando modularidade
+
+## Testes e Resultados
+
+Realizamos testes utilizando rede local (192.168.1.X) e rede aberta. Todos funcionando corretamente, apesar de um maior delay quando migravamos para rede publica.
+
+As variáveis dos testes foram diversas: testamos utilização de parametros errados, no qual criamos multiplas causas para conter. Também lidamos com problemas da comunicação abrindo 1 socket por mensagem. Pois, devido a forma com que o programa gerava os dados e ia "dormir", o servidor ficava inumeras vezes ocioso sem necessidade. Juntando a forma com quem a implantação desses sistemas acontece na realidade, optamos então por abrir um socket por envio de mensagem.
+
+Também testamos utilização da conexão segura entre turbina e monitor, que está funcionando corretamente apesar das limitações de códigos finitos. Também testamos com códigos "fake" e de fato a verificação é feita antes de liberar a comunicação entre cliente e servidor. Um passo que não foi implementado era gerar esses pseudo-codigos de forma (semi) automatica para que a validação pudesse ser feita em tempo real pelos dois lados
+
+Sobre os resultados, tivemos um sucesso com a implementação da nossa simulação. Foi possível ve-la funcionando com 3 turbinas em tempo real sem nenhum problema ou lentidao. Durante alguns momentos fechavamos algumas linhas de comando e abriamos outras, e o monitoramento continuava perfeitamente, sem erros ou processamentos mal feitos.
+
+## Problemas de rede ou de implementação
+
+Não necessariamente um problema, mas uma das dificuldades do grupo foi deixar um socket aberto por alguns segundos (15~30) enquanto os dois programas rodavam em loops gerando dados. Acabou criando uma pequena confusão de sockets sendo chamados o esquecido de ser fechados, causando grandes problemas na implantação do código. Por isso, uma de nossas soluções foi para cada troca de mensagem entre monitor e turbina, abrir um novo socket, mesmo para mensagens simples. Para um futuro projeto, seria ideal mudar a forma com que a geração e envio dos dados é feita, afim de reduzir o numero de sockets abertos durante a comunicação do programa
+
+Outro ponto que não foi necessariamente um problema, mas poderiamos melhorar, foi a identificação do tipo de mensagem. Atualmente, só conseguimos identificar se é uma mensagem de configuração ou de envio de dados através do length (em Bytes) daquela mensagem. O programa foi desenhado de uma forma com que nenhum length se repetisse. Porém, manter esse design pode causar futuros problemas, principalmente de manutenabilidade. Para isso, o ideial seria em uma proxima versão, expandir a sintaxe das mensagens a fim de identificar previamente qual o time de mensagem que será enviada, quantos bytes devemos aguardar dela e qual o seu proposito.
+
+Com isso, conseguimos otimizar o socket ao maximo, reduzimos o tempo gasto com transmissão de mensagens e ainda deixamos a protocolo mais robusto para eventuais mudanças e versões
 
 ## Fonte
+
 usar fontes e comentar no código da onde veio
 
 entregar fonte relatório e executável
