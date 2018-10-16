@@ -15,10 +15,10 @@ class Monitoramento:
         self.host = host
         self.port = port
 
-
+        # Definimos o numero de turbina para, no listen limitarmos o numero de conexões a porta. 5 parece um numero razoavel para os testes
         self.numero_turbinas = numero_turbinas
-        self.turbinas_online = {}
 
+        # Implementacao simples de 'serial' - em uma versão mais detalhada, isso seria feito por códigos com validacao de ambos os lados
         self.seriais = ['4Y7B1N8K', 'LJAXC7SP', '3ZOPA1N7', '1MKC6KK0', '9H10W0A7']
 
     # Inicia servidor
@@ -26,7 +26,7 @@ class Monitoramento:
         # Cria novo socket utilizando IPv4 e TCP
         soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        # SO_REUSEADDR flag tells the kernel to reuse a local socket in TIME_WAIT state, without waiting for its natural timeout to expire
+        # SO_REUSEADDR diz ao S.O para reutilizar o socket local em WAIT, sem esperar pelo time natural de expire
         soc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         # Tentamos fazer bind a porta - caso esta esteja ocupada, irá falhar e o programa ira fechar
@@ -61,19 +61,19 @@ class Monitoramento:
 
     # Thread que ira cuidar de toda conexao de um novo cliente
     def thread_turbina(self, connection, ip, port, max_buffer_size = 5120):
-        # Bool que define se cliente ainda esta conectado
+        # Bool que define se cliente ainda esta conectado | mantemos a thread ativa enquanto isso
         _ativa = True
 
         # Mantemos a conexao enquanto o cliente estiver ativo (recebendo pacotes ou nao saiu da aplicacao)
         while _ativa:
 
-            # Recebemos a mensagem do cliente
+            # Recebemos a mensagem do cliente | aqui colocamos um buff generico de 5120B, mas poderiamos ter feito específico pro length de cada mensagem
             mensagem_turbina = connection.recv(max_buffer_size)
 
             # Medimos qual o length da mensagem, e de acordo com o tamanho, sabemos qual o tipo de mensagem
             length_mensagem = sys.getsizeof(mensagem_turbina)
 
-            """ -- VERIFICACAO DO LENGTH DA MENSAGEM -- """
+            """ ######## INICIO CONTROLE DE MENSAGENS ######## """
 
             if length_mensagem == 42:
                 """ FECHANDO CONEXAO COM O MONITORAMENTO """
@@ -88,6 +88,7 @@ class Monitoramento:
                 """ CONFIGURANDO A TURBINA PELA PRIMEIRA VEZ """
                 resultado = self.configura_turbina_hash(connection, mensagem_turbina.decode('utf8'), ip, port)
 
+                # caso resultado seja igual a um, o serial que a turbina nos enviou nao consta na nossa lista, então recusamos a conexao
                 if resultado == 1:
                     connection.close()
                     _ativa = False
@@ -97,7 +98,7 @@ class Monitoramento:
                 self.processa_status_turbina(connection, mensagem_turbina.decode('utf8'))
 
             elif length_mensagem == 46:
-                """ TURBINA TRIPADA """
+                """ TURBINA TRIPADA / COM FALHA """
                 self.process_turbina_tripada(connection, mensagem_turbina.decode('utf8'))
 
             else:
@@ -110,13 +111,14 @@ class Monitoramento:
         # Turbina esta pronta para operar
         print('Turbina ' + mensagem_turbina + ' configurada com sucesso!')
 
-        # Envia OK para turbina
+        # Envia OK para turbina de qql forma, não existe como recusar
         connection.sendall("001".encode("utf8"))
 
     def configura_turbina_hash(self, connection, mensagem_turbina, ip, port):
-
+        # Igual ao metodo para configurar turbina normalmente, porém aqui fazemos o split para separar a mensagem que vem no formato WTGXX:SERIAL
         hash_turbina = mensagem_turbina.split(':')
 
+        # Verificamos se é um serial valido
         if hash_turbina[1] in self.seriais:
             print('Turbina ' + hash_turbina[0] + ' configurada com sucesso!')
             connection.sendall("001".encode("utf8"))
@@ -127,25 +129,32 @@ class Monitoramento:
 
     def processa_status_turbina(self, connection, mensagem_turbina):
 
+        # Os parametros da turbina veem separados todos por : em formato de string
         kpis_turbina = mensagem_turbina.split(':')
 
+        # Mandamos um print para o monitoramento
         print('Status ' + mensagem_turbina[:5] + ' => VENTO: {} | MW GERADO: {} | #ALARMES: {}'.format(kpis_turbina[1], kpis_turbina[2], kpis_turbina[3]))
 
-        # CONDICOES PARA CONTINUAR OPERANDO
 
+        """ ###### CONDICOES PARA CONTINUAR OPERANDO ###### """
+
+        # Caso o vento seja > 19m/s => desligamos a turbina
         if (float(kpis_turbina[1]) > 19):
-            # VENTO ALTO - DESLIGAR TURBINA
             connection.sendall("002".encode("utf8"))
+
+        # Caso o vento seja < 11m/s, aumentamos a potencia para gerar mais energia
         elif (float(kpis_turbina[1]) < 11):
-            # AUMENTAR POTENCIA DA TURBINA
             connection.sendall("003".encode("utf8"))
-        elif (float(kpis_turbina[2]) == 2):
-            # DIMINUI POTENCIA DEVIDO A FALHAS
+
+        # Caso o numero de falhas seja igual a 2, reduzimos a potencia a fim de causar novas falhas
+        elif (float(kpis_turbina[3]) == 2):
             connection.sendall("004".encode("utf8"))
+
+        # Caso nenhum dessas condições seja verdade, continuamos normalmente
         else:
-            # CONTINUAR
             connection.sendall("001".encode("utf8"))
 
+    # Quando a turbina envia uma mensagem que está tripada / com falha, apenas printamos e retornamos 'ok'
     def process_turbina_tripada(self, connection, mensagem_turbina):
         print('Turbina: ' + mensagem_turbina[:5] + ' tripada... aguardando reparos...')
         connection.sendall('001'.encode('utf8'))
